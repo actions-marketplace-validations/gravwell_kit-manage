@@ -1,0 +1,37 @@
+# Example workflow: Manually triggered push operation
+#
+# Required repository configuration:
+#   Secrets:
+#     GRAVWELL_TOKEN  - API token for authenticating with the Gravwell instance
+#
+#   Variables:
+#     GRAVWELL_HOST   - URL of the Gravwell instance (e.g. https://gravwell.example.com)
+#     GRAVWELL_KIT_ID - Kit build ID on the remote Gravwell system
+#
+
+name: 'Kit Push'
+
+on:
+  workflow_dispatch:
+    inputs:
+      kit_dir:
+        description: 'Directory in the repo containing the kit'
+        required: false
+        default: ''
+
+jobs:
+  push:
+    runs-on: ubuntu-latest
+    env:
+      GRAVWELL_HOST: ${{ vars.GRAVWELL_HOST }}
+      GRAVWELL_TOKEN: ${{ secrets.GRAVWELL_TOKEN }}
+      GRAVWELL_KIT_ID: ${{ vars.GRAVWELL_KIT_ID }}
+      GRAVWELL_KIT_DIR: ${{ github.workspace }}/${{ inputs.kit_dir }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Push kit to Gravwell
+        uses: gravwell/kit-manage@v1
+        with:
+          operation: push

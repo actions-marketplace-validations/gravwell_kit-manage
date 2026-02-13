@@ -1,0 +1,115 @@
+name: 'Gravwell Kit Manager'
+description: 'Manage Gravwell kits by pulling from or pushing to a remote Gravwell instance'
+
+inputs:
+  operation:
+    description: 'Operation to perform: "pull" or "push"'
+    required: true
+  go-version:
+    description: 'Go version to use for building tools'
+    required: false
+    default: '1.26.0'
+  ignore-cert:
+    description: 'Ignore TLS certificate errors when connecting to the Gravwell instance'
+    required: false
+    default: 'false'
+  kit-global:
+    description: 'Deploy kit with global access (push only)'
+    required: false
+    default: 'false'
+  kit-write-global:
+    description: 'Deploy kit with global write access (push only)'
+    required: false
+    default: 'false'
+  kit-groups:
+    description: 'Comma separated list of groups to deploy the kit to (push only)'
+    required: false
+    default: ''
+  kit-write-groups:
+    description: 'Comma separated list of groups with write access (push only)'
+    required: false
+    default: ''
+  kit-labels:
+    description: 'Comma separated list of labels for the kit (push only)'
+    required: false
+    default: ''
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Validate inputs
+      shell: bash
+      run: |
+        if [[ "${{ inputs.operation }}" != "pull" && "${{ inputs.operation }}" != "push" ]]; then
+          echo "::error::Invalid operation '${{ inputs.operation }}'. Must be 'pull' or 'push'."
+          exit 1
+        fi
+        if [[ -z "${GRAVWELL_HOST}" ]]; then
+          echo "::error::GRAVWELL_HOST environment variable is not set."
+          exit 1
+        fi
+        if [[ -z "${GRAVWELL_TOKEN}" ]]; then
+          echo "::error::GRAVWELL_TOKEN environment variable is not set."
+          exit 1
+        fi
+        if [[ -z "${GRAVWELL_KIT_ID}" ]]; then
+          echo "::error::GRAVWELL_KIT_ID environment variable is not set."
+          exit 1
+        fi
+        if [[ -z "${GRAVWELL_KIT_DIR}" ]]; then
+          echo "::error::GRAVWELL_KIT_DIR environment variable is not set."
+          exit 1
+        fi
+
+    - name: Setup Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: '${{ inputs.go-version }}'
+        cache: false
+
+    - name: Build kitctl
+      shell: bash
+      run: |
+        echo "::group::Building kitctl"
+        go install github.com/gravwell/gravwell/v3/kitctl@latest
+        echo "::endgroup::"
+
+    - name: Build kitmanager
+      shell: bash
+      run: |
+        echo "::group::Building kitmanager"
+        go install github.com/gravwell/gravwell/v3/tools/actions/kitmanager@latest
+        echo "::endgroup::"
+
+    - name: Run kit operation
+      shell: bash
+      env:
+        GRAVWELL_KITCTL: ${{ github.action_path }}/kitctl
+        GRAVWELL_KIT_GLOBAL: ${{ inputs.kit-global }}
+        GRAVWELL_KIT_WRITE_GLOBAL: ${{ inputs.kit-write-global }}
+        GRAVWELL_KIT_GROUPS: ${{ inputs.kit-groups }}
+        GRAVWELL_KIT_WRITE_GROUPS: ${{ inputs.kit-write-groups }}
+        GRAVWELL_KIT_LABELS: ${{ inputs.kit-labels }}
+      run: |
+        # Locate the installed binaries
+        KITCTL_PATH="$(go env GOPATH)/bin/kitctl"
+        KITMANAGER_PATH="$(go env GOPATH)/bin/kitmanager"
+
+        if [[ ! -x "${KITCTL_PATH}" ]]; then
+          echo "::error::kitctl binary not found at ${KITCTL_PATH}"
+          exit 1
+        fi
+        if [[ ! -x "${KITMANAGER_PATH}" ]]; then
+          echo "::error::kitmanager binary not found at ${KITMANAGER_PATH}"
+          exit 1
+        fi
+
+        export GRAVWELL_KITCTL="${KITCTL_PATH}"
+
+        EXTRA_FLAGS=""
+        if [[ "${{ inputs.ignore-cert }}" == "true" ]]; then
+          EXTRA_FLAGS="-ignore-cert"
+        fi
+
+        echo "Running kitmanager ${{ inputs.operation }}"
+        "${KITMANAGER_PATH}" ${EXTRA_FLAGS} ${{ inputs.operation }}

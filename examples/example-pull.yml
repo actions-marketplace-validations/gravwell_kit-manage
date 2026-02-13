@@ -1,0 +1,61 @@
+# Example workflows demonstrating the Gravwell Kit Manager action.
+#
+# This file contains three workflow definitions:
+#   1. kit-pull  - Manually triggered pull operation
+#   2. kit-push  - Manually triggered push operation
+#   3. kit-push-on-merge - Automatic push on merge to main (use with caution)
+#
+# Required repository configuration:
+#   Secrets:
+#     GRAVWELL_TOKEN  - API token for authenticating with the Gravwell instance
+#
+#   Variables:
+#     GRAVWELL_HOST   - URL of the Gravwell instance (e.g. https://gravwell.example.com)
+#     GRAVWELL_KIT_ID - Kit build ID on the remote Gravwell system
+#
+
+# ──────────────────────────────────────────────────────────────────────
+# 1. Manual Pull - Sync a kit from a remote Gravwell instance into the repo
+# ──────────────────────────────────────────────────────────────────────
+name: 'Kit Pull'
+
+on:
+  workflow_dispatch:
+    inputs:
+      kit_dir:
+        description: 'Directory in the repo to sync kit contents into'
+        required: false
+        default: ''
+
+permissions:
+  contents: write
+
+jobs:
+  pull:
+    runs-on: ubuntu-latest
+    env:
+      GRAVWELL_HOST: ${{ vars.GRAVWELL_HOST }}
+      GRAVWELL_TOKEN: ${{ secrets.GRAVWELL_TOKEN }}
+      GRAVWELL_KIT_ID: ${{ vars.GRAVWELL_KIT_ID }}
+      GRAVWELL_KIT_DIR: ${{ github.workspace }}/${{ inputs.kit_dir }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Pull kit from Gravwell
+        uses: gravwell/kit-manage@v1
+        with:
+          operation: pull
+
+      - name: Commit and push changes
+        run: |
+          cd "${{ github.workspace }}"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m "kit: sync from Gravwell (pull)"
+            git push
+          fi
