@@ -115,9 +115,6 @@ runs:
         if [[ "${{ inputs.ignore-cert }}" == "true" ]]; then
           EXTRA_FLAGS="-ignore-cert"
         fi
-        if [[ "${{ inputs.operation }}" == "pull" ]]; then
-          EXTRA_FLAGS="${EXTRA_FLAGS} -zero-hash=true"
-        fi
 
         echo "Running kitmanager ${{ inputs.operation }}"
         "${KITMANAGER_PATH}" ${EXTRA_FLAGS} ${{ inputs.operation }}
