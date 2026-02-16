@@ -2,7 +2,7 @@
 
 A GitHub Actions plugin for managing [Gravwell](https://www.gravwell.io) kits using git.  It enables two workflows:
 
-- **Pull** — sync a kit from a remote Gravwell instance into a git repository
+- **Pull** — sync a kit from a remote Gravwell instance into a git repository via a pull request
 - **Push** — pack a locally checked-out kit and deploy it to a remote Gravwell instance
 
 The action builds two Go tools during initialization:
@@ -40,7 +40,7 @@ These **must** be set in the calling workflow's `env` block:
 
 ### Manual Pull
 
-Sync a kit from a Gravwell instance into the repository, committing any changes:
+Sync a kit from a Gravwell instance into the repository. The action automatically creates or updates a `kit-manage-sync` branch (synced from `main`), commits changes there, and opens a pull request:
 
 ```yaml
 name: 'Kit Pull'
@@ -55,6 +55,7 @@ on:
 
 permissions:
   contents: write
+  pull-requests: write
 
 jobs:
   pull:
@@ -69,18 +70,6 @@ jobs:
       - uses: gravwell/kit-manage@v1
         with:
           operation: pull
-      - name: Commit and push changes
-        run: |
-          cd "${{ github.workspace }}"
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add -A
-          if git diff --cached --quiet; then
-            echo "No changes to commit"
-          else
-            git commit -m "kit: sync from Gravwell (pull)"
-            git push
-          fi
 ```
 
 ### Manual Push
@@ -124,7 +113,7 @@ jobs:
 >
 > Consider using the manual push workflow instead for safer, human-gated deployments.
 >
-> **Warning** a Pull operation constitutes a kit build on the remote system and will commit code to main if there are changes.  Do not combine Push on Merge with a Pull workflow as they will trigger each other in a potentially endless loop.
+> **Note:** Pull operations create a pull request to `main` via the `kit-manage-sync` branch, so they will not directly trigger a Push on Merge workflow.
 
 ```yaml
 name: 'Kit Push on Merge'

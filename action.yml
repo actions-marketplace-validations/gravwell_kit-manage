@@ -118,3 +118,66 @@ runs:
 
         echo "Running kitmanager ${{ inputs.operation }}"
         "${KITMANAGER_PATH}" ${EXTRA_FLAGS} ${{ inputs.operation }}
+
+    - name: Create or sync kit-manage-sync branch
+      if: inputs.operation == 'pull'
+      shell: bash
+      run: |
+        cd "${{ github.workspace }}"
+        git config user.name "github-actions[bot]"
+        git config user.email "github-actions[bot]@users.noreply.github.com"
+
+        DEFAULT_BRANCH="${{ github.event.repository.default_branch }}"
+        SYNC_BRANCH="kit-manage-sync"
+
+        # Fetch latest remote state
+        git fetch origin
+
+        # Check if the sync branch already exists on the remote
+        if git ls-remote --exit-code --heads origin "${SYNC_BRANCH}" >/dev/null 2>&1; then
+          # Branch exists — reset it to match the default branch
+          git checkout -B "${SYNC_BRANCH}" "origin/${DEFAULT_BRANCH}"
+        else
+          # Branch does not exist — create it from the default branch
+          git checkout -b "${SYNC_BRANCH}" "origin/${DEFAULT_BRANCH}"
+        fi
+
+    - name: Commit and push to kit-manage-sync
+      if: inputs.operation == 'pull'
+      shell: bash
+      run: |
+        cd "${{ github.workspace }}"
+        git add -A
+        if git diff --cached --quiet; then
+          echo "No changes to commit"
+        else
+          git commit -m "kit: sync from Gravwell (pull)"
+          git push --force origin kit-manage-sync
+        fi
+
+    - name: Create pull request
+      if: inputs.operation == 'pull'
+      shell: bash
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: |
+        cd "${{ github.workspace }}"
+
+        # Check if there are any commits to propose
+        if git diff --quiet "origin/${{ github.event.repository.default_branch }}" kit-manage-sync; then
+          echo "No differences between kit-manage-sync and ${{ github.event.repository.default_branch }}, skipping PR creation"
+          exit 0
+        fi
+
+        # Check if an open PR already exists for this branch
+        EXISTING_PR=$(gh pr list --head kit-manage-sync --state open --json number --jq '.[0].number // empty')
+        if [[ -n "${EXISTING_PR}" ]]; then
+          echo "Pull request #${EXISTING_PR} already exists, it has been updated with the latest changes"
+        else
+          gh pr create \
+            --title "kit: sync from Gravwell (pull)" \
+            --body "Automated pull request created by kit-manage action to sync kit contents from Gravwell." \
+            --base "${{ github.event.repository.default_branch }}" \
+            --head kit-manage-sync
+          echo "Pull request created"
+        fi

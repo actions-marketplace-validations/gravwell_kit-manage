@@ -29,6 +29,7 @@ on:
 
 permissions:
   contents: write
+  pull-requests: write
 
 jobs:
   pull:
@@ -47,15 +48,5 @@ jobs:
         with:
           operation: pull
 
-      - name: Commit and push changes
-        run: |
-          cd "${{ github.workspace }}"
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add -A
-          if git diff --cached --quiet; then
-            echo "No changes to commit"
-          else
-            git commit -m "kit: sync from Gravwell (pull)"
-            git push
-          fi
+      # Commit, branch management, and PR creation are now handled
+      # automatically by the kit-manage action for pull operations.
