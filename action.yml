@@ -33,6 +33,10 @@ inputs:
     description: 'Comma separated list of labels for the kit (push only)'
     required: false
     default: ''
+  kit-force-install:
+    description: 'Force install kit even if newer kit already exists (push only)'
+    required: false
+    default: 'false'
 
 runs:
   using: 'composite'
@@ -90,6 +94,7 @@ runs:
         GRAVWELL_KIT_GROUPS: ${{ inputs.kit-groups }}
         GRAVWELL_KIT_WRITE_GROUPS: ${{ inputs.kit-write-groups }}
         GRAVWELL_KIT_LABELS: ${{ inputs.kit-labels }}
+        GRAVWELL_KIT_FORCE_INSTALL: ${{ inputs.kit-force-install }}
       run: |
         # Locate the installed binaries
         KITCTL_PATH="$(go env GOPATH)/bin/kitctl"
@@ -109,6 +114,9 @@ runs:
         EXTRA_FLAGS=""
         if [[ "${{ inputs.ignore-cert }}" == "true" ]]; then
           EXTRA_FLAGS="-ignore-cert"
+        fi
+        if [[ "${{ inputs.operation }}" == "pull" ]]; then
+          EXTRA_FLAGS="${EXTRA_FLAGS} -zero-hash=true"
         fi
 
         echo "Running kitmanager ${{ inputs.operation }}"
